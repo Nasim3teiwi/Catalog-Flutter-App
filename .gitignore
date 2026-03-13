@@ -1,0 +1,73 @@
+# -----------------------------
+# Flutter / Dart
+# -----------------------------
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub/
+.pub-cache/
+build/
+coverage/
+
+# Generated docs
+doc/api/
+
+# Symbolication / obfuscation outputs
+app.*.symbols
+app.*.map.json
+
+# -----------------------------
+# Android
+# -----------------------------
+android/.gradle/
+android/local.properties
+android/key.properties
+android/app/debug/
+android/app/profile/
+android/app/release/
+
+# Keystores and signing artifacts
+*.jks
+*.keystore
+
+# -----------------------------
+# iOS / macOS
+# -----------------------------
+ios/Flutter/.last_build_id
+ios/Flutter/ephemeral/
+ios/Flutter/flutter_export_environment.sh
+ios/Pods/
+
+macos/Flutter/ephemeral/
+
+# -----------------------------
+# Windows / Linux generated
+# -----------------------------
+windows/flutter/ephemeral/
+linux/flutter/ephemeral/
+
+# -----------------------------
+# IDEs and editors
+# -----------------------------
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Keep .vscode optional. Uncomment if you don't want shared workspace settings.
+# .vscode/
+
+# -----------------------------
+# OS / temp files
+# -----------------------------
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.tmp
+*.temp
+
+# -----------------------------
+# Logs
+# -----------------------------
+*.log
