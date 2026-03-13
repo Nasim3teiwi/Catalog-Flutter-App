@@ -89,6 +89,8 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final media = MediaQuery.of(context);
+    final imageHeight = media.size.height * 0.68;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -118,83 +120,57 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
             child: Column(
               children: [
                 const SizedBox(height: 12),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: _showIndicatorsTemporarily,
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                final panelWidth = constraints.maxWidth;
-                                final portraitHeight = panelWidth * 5 / 4;
-                                final maxHeight = constraints.maxHeight;
-                                final panelHeight =
-                                    portraitHeight > maxHeight ? maxHeight : portraitHeight;
-
-                                return Align(
-                                  alignment: Alignment.topCenter,
-                                  child: SizedBox(
-                                    width: panelWidth,
-                                    height: panelHeight,
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(24),
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withValues(alpha: 0.06),
-                                          border: Border.all(
-                                            color: Colors.white.withValues(alpha: 0.14),
-                                          ),
-                                        ),
-                                        child: PageView.builder(
-                                          key: _pageViewKey,
-                                          controller: _pageController,
-                                          itemCount: widget.products.length,
-                                          onPageChanged: (index) {
-                                            setState(() {
-                                              _currentIndex = index;
-                                              _showAddFeedback = false;
-                                            });
-                                            _showIndicatorsTemporarily();
-                                          },
-                                          itemBuilder: (context, index) {
-                                            final product = widget.products[index];
-                                            return Center(
-                                              child: Hero(
-                                                tag: 'product_${product.id}',
-                                                child: ProductImage(
-                                                  imagePath: product.image,
-                                                  fit: BoxFit.contain,
-                                                  errorWidget: Icon(
-                                                    Icons.image_outlined,
-                                                    size: 110,
-                                                    color: theme
-                                                        .colorScheme.onSurfaceVariant,
-                                                  ),
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _showIndicatorsTemporarily,
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: imageHeight,
+                    child: PageView.builder(
+                      key: _pageViewKey,
+                      controller: _pageController,
+                      itemCount: widget.products.length,
+                      onPageChanged: (index) {
+                        setState(() {
+                          _currentIndex = index;
+                          _showAddFeedback = false;
+                        });
+                        _showIndicatorsTemporarily();
+                      },
+                      itemBuilder: (context, index) {
+                        final product = widget.products[index];
+                        return Hero(
+                          tag: 'product_${product.id}',
+                          child: ProductImage(
+                            imagePath: product.image,
+                            fit: BoxFit.contain,
+                            errorWidget: Icon(
+                              Icons.image_outlined,
+                              size: 110,
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          _buildIndicators(theme),
-                          const SizedBox(height: 12),
-                          _ProductMeta(product: _currentProduct),
-                        ],
-                      ),
+                        );
+                      },
                     ),
                   ),
                 ),
+                const SizedBox(height: 10),
+                _buildIndicators(theme),
+                const SizedBox(height: 10),
+                Consumer<CartProvider>(
+                  builder: (context, cart, _) {
+                    final product = _currentProduct;
+                    final cartQty = product.id == null
+                        ? 0
+                        : cart.getQuantity(product.id!);
+                    return _ProductMeta(
+                      product: product,
+                      quantityInOrder: cartQty,
+                    );
+                  },
+                ),
+                const Spacer(),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                   child: GestureDetector(
@@ -244,67 +220,48 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
   }
 
   Widget _buildBottomCta(ThemeData theme) {
-    return Consumer<CartProvider>(
-      builder: (context, cart, _) {
-        final product = _currentProduct;
-        final cartQty = product.id == null ? 0 : cart.getQuantity(product.id!);
-
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.45),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          key: _addButtonKey,
+          onPressed: _addToOrder,
+          iconAlignment: IconAlignment.start,
+          icon: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 240),
+            child: _showAddFeedback
+                ? const Icon(Icons.check_circle, key: ValueKey('ok'))
+                : const Icon(Icons.add, key: ValueKey('plus')),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'في الطلب: $cartQty',
-                key: _inOrderQtyKey,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.white70,
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  key: _addButtonKey,
-                  onPressed: _addToOrder,
-                  iconAlignment: IconAlignment.start,
-                  icon: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 240),
-                    child: _showAddFeedback
-                        ? const Icon(Icons.check_circle, key: ValueKey('ok'))
-                        : const Icon(Icons.add, key: ValueKey('plus')),
-                  ),
-                  label: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 240),
-                    child: Text(
-                      _showAddFeedback ? 'تمت الإضافة +1' : 'إضافة للطلب',
-                      key: ValueKey(_showAddFeedback),
-                    ),
-                  ),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(54),
-                    textStyle: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    backgroundColor:
-                        _showAddFeedback ? const Color(0xFF16A34A) : const Color(0xFF22C55E),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+          label: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 240),
+            child: Text(
+              _showAddFeedback ? 'تمت الإضافة +1' : 'إضافة للطلبية +',
+              key: ValueKey(_showAddFeedback),
+            ),
           ),
-        );
-      },
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(56),
+            textStyle: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+            backgroundColor: _showAddFeedback
+                ? const Color(0xFF16A34A)
+                : const Color(0xFF22C55E),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -331,8 +288,9 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
 
 class _ProductMeta extends StatelessWidget {
   final Product product;
+  final int quantityInOrder;
 
-  const _ProductMeta({required this.product});
+  const _ProductMeta({required this.product, required this.quantityInOrder});
 
   @override
   Widget build(BuildContext context) {
@@ -350,18 +308,24 @@ class _ProductMeta extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        if (product.price != null) ...[
-          const SizedBox(height: 4),
+        const SizedBox(height: 4),
+        if (product.price != null)
           Text(
             '${product.price!.toStringAsFixed(2)} ₪',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: Colors.white70,
+              fontWeight: FontWeight.w600,
             ),
           ),
-        ],
+        const SizedBox(height: 2),
+        Text(
+          'في الطلب: $quantityInOrder',
+          key: _ProductImageViewerState._inOrderQtyKey,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
+        ),
       ],
     );
   }
 }
-
