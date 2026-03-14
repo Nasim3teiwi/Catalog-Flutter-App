@@ -49,8 +49,9 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
   static final _pageViewKey = GlobalKey(debugLabel: 'productImageViewerPageView');
   static final _addButtonKey = GlobalKey(debugLabel: 'productImageViewerAddButton');
   static const _inOrderQtyKey = Key('productImageViewerInOrderQty');
-  static const _verticalDismissThreshold = 120.0;
+  static const _verticalDismissThreshold = 80.0;
   static const _gestureLockThreshold = 12.0;
+  static const _horizontalSwipeThreshold = 40.0;
   static const _metaSectionHeight = 88.0;
 
   late final PageController _pageController;
@@ -63,6 +64,7 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
   bool _isClosingBySwipe = false;
   int? _activePointer;
   Offset? _dragStartGlobal;
+  double? _pageAtPointerDown;
   int? _dragStartEpochMs;
   _DragIntent _dragIntent = _DragIntent.undecided;
   double _verticalDragOffset = 0;
@@ -253,6 +255,9 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
     _isPointerActive = true;
     _dragIntent = _DragIntent.undecided;
     _dragStartGlobal = event.position;
+    _pageAtPointerDown = _pageController.hasClients
+      ? (_pageController.page ?? _currentIndex.toDouble())
+      : _currentIndex.toDouble();
     _dragStartEpochMs = DateTime.now().millisecondsSinceEpoch;
     _startedOnAddButton = _isPositionInsideKey(_addButtonKey, event.position);
   }
@@ -274,7 +279,7 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
     }
 
     if (_dragIntent == _DragIntent.vertical) {
-      final nextOffset = (dy > 0 ? dy * 0.55 : 0.0).clamp(0.0, double.infinity);
+      final nextOffset = (dy > 0 ? dy * 0.8 : 0.0).clamp(0.0, double.infinity);
       if ((_verticalDragOffset - nextOffset).abs() > 0.5 && mounted) {
         setState(() {
           _verticalDragOffset = nextOffset;
@@ -289,6 +294,7 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
     final start = _dragStartGlobal;
     final end = event.position;
     final startedOnAddButton = _startedOnAddButton;
+    final pageMovedDuringGesture = _didPageMoveDuringGesture();
     final intent = _dragIntent;
     final elapsedMs = _elapsedFromDragStartMs();
 
@@ -307,6 +313,11 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
       } else if (mounted) {
         setState(() => _verticalDragOffset = 0);
       }
+      return;
+    }
+
+    if (intent == _DragIntent.horizontal && !pageMovedDuringGesture) {
+      _handleNonPageViewHorizontalSwipe(dx);
       return;
     }
 
@@ -352,10 +363,42 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
   void _resetPointerTracking() {
     _activePointer = null;
     _dragStartGlobal = null;
+    _pageAtPointerDown = null;
     _dragStartEpochMs = null;
     _dragIntent = _DragIntent.undecided;
     _startedOnAddButton = false;
     _isPointerActive = false;
+  }
+
+  bool _didPageMoveDuringGesture() {
+    if (!_pageController.hasClients) return false;
+    final start = _pageAtPointerDown;
+    if (start == null) return false;
+    final current = _pageController.page ?? _currentIndex.toDouble();
+    return (current - start).abs() > 0.06;
+  }
+
+  void _handleNonPageViewHorizontalSwipe(double dx) {
+    if (!mounted || _isClosingBySwipe) return;
+    if (dx.abs() < _horizontalSwipeThreshold) return;
+    if (widget.products.length <= 1) return;
+
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    final isSwipeLeft = dx < 0;
+    final shouldGoToNext = isRtl ? !isSwipeLeft : isSwipeLeft;
+    final targetIndex = shouldGoToNext ? _currentIndex + 1 : _currentIndex - 1;
+    final clampedIndex = targetIndex.clamp(0, widget.products.length - 1);
+    if (clampedIndex == _currentIndex) return;
+
+    _pageController.animateToPage(
+      clampedIndex,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
+
+    if (!_showUi) {
+      _showIndicatorsTemporarily();
+    }
   }
 
   int _elapsedFromDragStartMs() {
