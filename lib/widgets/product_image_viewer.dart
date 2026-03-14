@@ -46,41 +46,54 @@ class _ProductImageViewer extends StatefulWidget {
 }
 
 class _ProductImageViewerState extends State<_ProductImageViewer> {
-  static const _pageViewKey = Key('productImageViewerPageView');
-  static const _addButtonKey = Key('productImageViewerAddButton');
+  static final _pageViewKey = GlobalKey(debugLabel: 'productImageViewerPageView');
+  static final _addButtonKey = GlobalKey(debugLabel: 'productImageViewerAddButton');
   static const _inOrderQtyKey = Key('productImageViewerInOrderQty');
+  static const _verticalDismissThreshold = 120.0;
+  static const _horizontalPageThreshold = 58.0;
+  static const _gestureLockThreshold = 12.0;
 
   late final PageController _pageController;
   late int _currentIndex;
   bool _showAddFeedback = false;
-  bool _showIndicators = true;
+  bool _showTransientIndicator = false;
+  bool _showUi = true;
+  bool _isPointerActive = false;
+  bool _startedInPageView = false;
+  bool _startedOnAddButton = false;
+  bool _isClosingBySwipe = false;
+  int? _activePointer;
+  Offset? _dragStartGlobal;
+  int? _dragStartEpochMs;
+  _DragIntent _dragIntent = _DragIntent.undecided;
+  double _verticalDragOffset = 0;
   Timer? _feedbackTimer;
-  Timer? _indicatorsTimer;
+  Timer? _indicatorTimer;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
-    _showIndicatorsTemporarily();
   }
 
   @override
   void dispose() {
     _feedbackTimer?.cancel();
-    _indicatorsTimer?.cancel();
+    _indicatorTimer?.cancel();
     _pageController.dispose();
     super.dispose();
   }
 
   void _showIndicatorsTemporarily() {
-    _indicatorsTimer?.cancel();
-    if (!_showIndicators && mounted) {
-      setState(() => _showIndicators = true);
+    if (_showUi) return;
+    _indicatorTimer?.cancel();
+    if (!_showTransientIndicator && mounted) {
+      setState(() => _showTransientIndicator = true);
     }
-    _indicatorsTimer = Timer(const Duration(milliseconds: 1800), () {
+    _indicatorTimer = Timer(const Duration(milliseconds: 1000), () {
       if (!mounted) return;
-      setState(() => _showIndicators = false);
+      setState(() => _showTransientIndicator = false);
     });
   }
 
@@ -91,95 +104,141 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
     final theme = Theme.of(context);
     final media = MediaQuery.of(context);
     final imageHeight = media.size.height * 0.68;
+    final dismissProgress =
+        (_verticalDragOffset / media.size.height).clamp(0.0, 1.0);
+    final overlayOpacity = (1 - dismissProgress * 0.45).clamp(0.55, 1.0);
+    final dragAnimationDuration = _isPointerActive
+        ? Duration.zero
+        : const Duration(milliseconds: 220);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
           Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.black.withValues(alpha: 0.95),
-                    Colors.black.withValues(alpha: 0.88),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+            child: Opacity(
+              opacity: overlayOpacity,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.black.withValues(alpha: 0.95),
+                      Colors.black.withValues(alpha: 0.88),
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
                 ),
               ),
             ),
           ),
           Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => Navigator.of(context).pop(),
-            ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                const SizedBox(height: 12),
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _showIndicatorsTemporarily,
-                  child: SizedBox(
-                    width: double.infinity,
-                    height: imageHeight,
-                    child: PageView.builder(
-                      key: _pageViewKey,
-                      controller: _pageController,
-                      itemCount: widget.products.length,
-                      onPageChanged: (index) {
-                        setState(() {
-                          _currentIndex = index;
-                          _showAddFeedback = false;
-                        });
-                        _showIndicatorsTemporarily();
-                      },
-                      itemBuilder: (context, index) {
-                        final product = widget.products[index];
-                        return Hero(
-                          tag: 'product_${product.id}',
-                          child: ProductImage(
-                            imagePath: product.image,
-                            fit: BoxFit.contain,
-                            errorWidget: Icon(
-                              Icons.image_outlined,
-                              size: 110,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: _handlePointerDown,
+              onPointerMove: _handlePointerMove,
+              onPointerUp: _handlePointerUp,
+              onPointerCancel: _handlePointerCancel,
+              child: AnimatedContainer(
+                duration: dragAnimationDuration,
+                curve: Curves.easeOutCubic,
+                transform: Matrix4.translationValues(0, _verticalDragOffset, 0),
+                child: SafeArea(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 12),
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {},
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: imageHeight,
+                          child: PageView.builder(
+                            key: _pageViewKey,
+                            controller: _pageController,
+                            itemCount: widget.products.length,
+                            onPageChanged: (index) {
+                              setState(() {
+                                _currentIndex = index;
+                                _showAddFeedback = false;
+                              });
+                              if (!_showUi) {
+                                _showIndicatorsTemporarily();
+                              }
+                            },
+                            itemBuilder: (context, index) {
+                              final product = widget.products[index];
+                              return Hero(
+                                tag: 'product_${product.id}',
+                                child: ProductImage(
+                                  imagePath: product.image,
+                                  fit: BoxFit.contain,
+                                  errorWidget: Icon(
+                                    Icons.image_outlined,
+                                    size: 110,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _buildIndicators(theme),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        switchInCurve: Curves.easeOut,
+                        switchOutCurve: Curves.easeIn,
+                        transitionBuilder: (child, animation) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(0, 0.05),
+                                end: Offset.zero,
+                              ).animate(animation),
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: _showUi
+                            ? Column(
+                                key: const ValueKey('viewerUiVisible'),
+                                children: [
+                                  const SizedBox(height: 10),
+                                  Consumer<CartProvider>(
+                                    builder: (context, cart, _) {
+                                      final product = _currentProduct;
+                                      final cartQty = product.id == null
+                                          ? 0
+                                          : cart.getQuantity(product.id!);
+                                      return _ProductMeta(
+                                        product: product,
+                                        quantityInOrder: cartQty,
+                                      );
+                                    },
+                                  ),
+                                ],
+                              )
+                            : const SizedBox(
+                                key: ValueKey('viewerUiHidden'),
+                                height: 10,
+                              ),
+                      ),
+                      const Spacer(),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {},
+                          child: _buildBottomCta(theme),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 10),
-                _buildIndicators(theme),
-                const SizedBox(height: 10),
-                Consumer<CartProvider>(
-                  builder: (context, cart, _) {
-                    final product = _currentProduct;
-                    final cartQty = product.id == null
-                        ? 0
-                        : cart.getQuantity(product.id!);
-                    return _ProductMeta(
-                      product: product,
-                      quantityInOrder: cartQty,
-                    );
-                  },
-                ),
-                const Spacer(),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {},
-                    child: _buildBottomCta(theme),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ],
@@ -187,13 +246,168 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
     );
   }
 
+  void _handlePointerDown(PointerDownEvent event) {
+    if (_activePointer != null || _isClosingBySwipe) return;
+
+    _activePointer = event.pointer;
+    _isPointerActive = true;
+    _dragIntent = _DragIntent.undecided;
+    _dragStartGlobal = event.position;
+    _dragStartEpochMs = DateTime.now().millisecondsSinceEpoch;
+    _startedInPageView = _isPositionInsideKey(_pageViewKey, event.position);
+    _startedOnAddButton = _isPositionInsideKey(_addButtonKey, event.position);
+  }
+
+  void _handlePointerMove(PointerMoveEvent event) {
+    if (_activePointer != event.pointer) return;
+
+    final start = _dragStartGlobal;
+    if (start == null) return;
+
+    final dx = event.position.dx - start.dx;
+    final dy = event.position.dy - start.dy;
+    final absDx = dx.abs();
+    final absDy = dy.abs();
+
+    if (_dragIntent == _DragIntent.undecided &&
+        (absDx > _gestureLockThreshold || absDy > _gestureLockThreshold)) {
+      _dragIntent = absDx > absDy ? _DragIntent.horizontal : _DragIntent.vertical;
+    }
+
+    if (_dragIntent == _DragIntent.vertical) {
+      final nextOffset = (dy > 0 ? dy * 0.55 : 0.0).clamp(0.0, double.infinity);
+      if ((_verticalDragOffset - nextOffset).abs() > 0.5 && mounted) {
+        setState(() {
+          _verticalDragOffset = nextOffset;
+        });
+      }
+    }
+  }
+
+  void _handlePointerUp(PointerUpEvent event) {
+    if (_activePointer != event.pointer) return;
+
+    final start = _dragStartGlobal;
+    final end = event.position;
+    final startedOnAddButton = _startedOnAddButton;
+    final intent = _dragIntent;
+    final startedInPageView = _startedInPageView;
+    final elapsedMs = _elapsedFromDragStartMs();
+
+    _resetPointerTracking();
+
+    if (start == null || _isClosingBySwipe) return;
+
+    final dx = end.dx - start.dx;
+    final dy = end.dy - start.dy;
+    final absDx = dx.abs();
+    final absDy = dy.abs();
+
+    if (intent == _DragIntent.vertical) {
+      if (_verticalDragOffset >= _verticalDismissThreshold) {
+        _closeByVerticalSwipe();
+      } else if (mounted) {
+        setState(() => _verticalDragOffset = 0);
+      }
+      return;
+    }
+
+    if (intent == _DragIntent.horizontal && !startedInPageView) {
+      _showIndicatorsTemporarily();
+      _navigateByHorizontalSwipe(dx);
+      return;
+    }
+
+    final isTap = absDx < 8 && absDy < 8 && elapsedMs <= 320;
+    if (isTap && !startedOnAddButton) {
+      _toggleUi();
+    }
+  }
+
+  void _handlePointerCancel(PointerCancelEvent event) {
+    if (_activePointer != event.pointer) return;
+    _resetPointerTracking();
+    if (_verticalDragOffset > 0 && mounted && !_isClosingBySwipe) {
+      setState(() => _verticalDragOffset = 0);
+    }
+  }
+
+  void _navigateByHorizontalSwipe(double dx) {
+    if (dx.abs() < _horizontalPageThreshold) return;
+
+    final nextIndex = dx < 0 ? _currentIndex + 1 : _currentIndex - 1;
+    if (nextIndex < 0 || nextIndex >= widget.products.length) return;
+    _pageController.animateToPage(
+      nextIndex,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _toggleUi() {
+    if (!mounted || _isClosingBySwipe) return;
+    setState(() {
+      _showUi = !_showUi;
+      if (!_showUi) {
+        _showTransientIndicator = false;
+        _indicatorTimer?.cancel();
+      }
+    });
+  }
+
+  void _closeByVerticalSwipe() {
+    if (!mounted || _isClosingBySwipe) return;
+    final height = MediaQuery.of(context).size.height;
+    setState(() {
+      _isClosingBySwipe = true;
+      _verticalDragOffset = height;
+    });
+
+    Future<void>.delayed(const Duration(milliseconds: 180), () {
+      if (!mounted) return;
+      Navigator.of(context).maybePop();
+    });
+  }
+
+  void _resetPointerTracking() {
+    _activePointer = null;
+    _dragStartGlobal = null;
+    _dragStartEpochMs = null;
+    _dragIntent = _DragIntent.undecided;
+    _startedInPageView = false;
+    _startedOnAddButton = false;
+    _isPointerActive = false;
+  }
+
+  int _elapsedFromDragStartMs() {
+    final start = _dragStartEpochMs;
+    if (start == null) return 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return now - start;
+  }
+
+  bool _isPositionInsideKey(GlobalKey key, Offset globalPosition) {
+    final ctx = key.currentContext;
+    if (ctx == null) return false;
+    final renderObject = ctx.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return false;
+
+    final local = renderObject.globalToLocal(globalPosition);
+    return local.dx >= 0 &&
+        local.dy >= 0 &&
+        local.dx <= renderObject.size.width &&
+        local.dy <= renderObject.size.height;
+  }
+
   Widget _buildIndicators(ThemeData theme) {
     if (widget.products.length <= 1) {
       return const SizedBox.shrink();
     }
 
+    final isVisible = _showUi || _showTransientIndicator;
+
     return AnimatedOpacity(
-      opacity: _showIndicators ? 1 : 0,
+      opacity: isVisible ? 1 : 0,
       duration: const Duration(milliseconds: 280),
       child: IgnorePointer(
         ignoring: true,
@@ -284,6 +498,12 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
       });
     });
   }
+}
+
+enum _DragIntent {
+  undecided,
+  horizontal,
+  vertical,
 }
 
 class _ProductMeta extends StatelessWidget {
