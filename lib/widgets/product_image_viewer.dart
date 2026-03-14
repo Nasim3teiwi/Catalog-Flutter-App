@@ -50,8 +50,8 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
   static final _addButtonKey = GlobalKey(debugLabel: 'productImageViewerAddButton');
   static const _inOrderQtyKey = Key('productImageViewerInOrderQty');
   static const _verticalDismissThreshold = 120.0;
-  static const _horizontalPageThreshold = 58.0;
   static const _gestureLockThreshold = 12.0;
+  static const _metaSectionHeight = 88.0;
 
   late final PageController _pageController;
   late int _currentIndex;
@@ -59,7 +59,6 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
   bool _showTransientIndicator = false;
   bool _showUi = true;
   bool _isPointerActive = false;
-  bool _startedInPageView = false;
   bool _startedOnAddButton = false;
   bool _isClosingBySwipe = false;
   int? _activePointer;
@@ -103,7 +102,6 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final media = MediaQuery.of(context);
-    final imageHeight = media.size.height * 0.68;
     final dismissProgress =
         (_verticalDragOffset / media.size.height).clamp(0.0, 1.0);
     final overlayOpacity = (1 - dismissProgress * 0.45).clamp(0.55, 1.0);
@@ -146,94 +144,96 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
                 child: SafeArea(
                   child: Column(
                     children: [
-                      const SizedBox(height: 12),
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () {},
-                        child: SizedBox(
-                          width: double.infinity,
-                          height: imageHeight,
-                          child: PageView.builder(
-                            key: _pageViewKey,
-                            controller: _pageController,
-                            itemCount: widget.products.length,
-                            onPageChanged: (index) {
-                              setState(() {
-                                _currentIndex = index;
-                                _showAddFeedback = false;
-                              });
-                              if (!_showUi) {
-                                _showIndicatorsTemporarily();
-                              }
-                            },
-                            itemBuilder: (context, index) {
-                              final product = widget.products[index];
-                              return Hero(
-                                tag: 'product_${product.id}',
-                                child: ProductImage(
-                                  imagePath: product.image,
-                                  fit: BoxFit.contain,
-                                  errorWidget: Icon(
-                                    Icons.image_outlined,
-                                    size: 110,
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: PageView.builder(
+                                key: _pageViewKey,
+                                controller: _pageController,
+                                itemCount: widget.products.length,
+                                onPageChanged: (index) {
+                                  setState(() {
+                                    _currentIndex = index;
+                                    _showAddFeedback = false;
+                                  });
+                                  if (!_showUi) {
+                                    _showIndicatorsTemporarily();
+                                  }
+                                },
+                                itemBuilder: (context, index) {
+                                  final product = widget.products[index];
+                                  return Hero(
+                                    tag: 'product_${product.id}',
+                                    child: SizedBox.expand(
+                                      child: ProductImage(
+                                        imagePath: product.image,
+                                        fit: BoxFit.contain,
+                                        errorWidget: Icon(
+                                          Icons.image_outlined,
+                                          size: 110,
+                                          color: theme.colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            IgnorePointer(
+                              ignoring: true,
+                              child: Center(child: _buildIndicators(theme)),
+                            ),
+                            const SizedBox(height: 10),
+                            IgnorePointer(
+                              ignoring: true,
+                              child: SizedBox(
+                                height: _metaSectionHeight,
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 220),
+                                  switchInCurve: Curves.easeOut,
+                                  switchOutCurve: Curves.easeIn,
+                                  transitionBuilder: (child, animation) {
+                                    return FadeTransition(
+                                      opacity: animation,
+                                      child: SlideTransition(
+                                        position: Tween<Offset>(
+                                          begin: const Offset(0, 0.05),
+                                          end: Offset.zero,
+                                        ).animate(animation),
+                                        child: child,
+                                      ),
+                                    );
+                                  },
+                                  child: _showUi
+                                      ? Align(
+                                          key: const ValueKey('viewerUiVisible'),
+                                          alignment: Alignment.topCenter,
+                                          child: Consumer<CartProvider>(
+                                            builder: (context, cart, _) {
+                                              final product = _currentProduct;
+                                              final cartQty = product.id == null
+                                                  ? 0
+                                                  : cart.getQuantity(product.id!);
+                                              return _ProductMeta(
+                                                product: product,
+                                                quantityInOrder: cartQty,
+                                              );
+                                            },
+                                          ),
+                                        )
+                                      : const SizedBox(
+                                          key: ValueKey('viewerUiHidden'),
+                                        ),
                                 ),
-                              );
-                            },
-                          ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      _buildIndicators(theme),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 220),
-                        switchInCurve: Curves.easeOut,
-                        switchOutCurve: Curves.easeIn,
-                        transitionBuilder: (child, animation) {
-                          return FadeTransition(
-                            opacity: animation,
-                            child: SlideTransition(
-                              position: Tween<Offset>(
-                                begin: const Offset(0, 0.05),
-                                end: Offset.zero,
-                              ).animate(animation),
-                              child: child,
-                            ),
-                          );
-                        },
-                        child: _showUi
-                            ? Column(
-                                key: const ValueKey('viewerUiVisible'),
-                                children: [
-                                  const SizedBox(height: 10),
-                                  Consumer<CartProvider>(
-                                    builder: (context, cart, _) {
-                                      final product = _currentProduct;
-                                      final cartQty = product.id == null
-                                          ? 0
-                                          : cart.getQuantity(product.id!);
-                                      return _ProductMeta(
-                                        product: product,
-                                        quantityInOrder: cartQty,
-                                      );
-                                    },
-                                  ),
-                                ],
-                              )
-                            : const SizedBox(
-                                key: ValueKey('viewerUiHidden'),
-                                height: 10,
-                              ),
-                      ),
-                      const Spacer(),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () {},
-                          child: _buildBottomCta(theme),
-                        ),
+                        child: _buildBottomCta(theme),
                       ),
                     ],
                   ),
@@ -254,7 +254,6 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
     _dragIntent = _DragIntent.undecided;
     _dragStartGlobal = event.position;
     _dragStartEpochMs = DateTime.now().millisecondsSinceEpoch;
-    _startedInPageView = _isPositionInsideKey(_pageViewKey, event.position);
     _startedOnAddButton = _isPositionInsideKey(_addButtonKey, event.position);
   }
 
@@ -291,7 +290,6 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
     final end = event.position;
     final startedOnAddButton = _startedOnAddButton;
     final intent = _dragIntent;
-    final startedInPageView = _startedInPageView;
     final elapsedMs = _elapsedFromDragStartMs();
 
     _resetPointerTracking();
@@ -312,12 +310,6 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
       return;
     }
 
-    if (intent == _DragIntent.horizontal && !startedInPageView) {
-      _showIndicatorsTemporarily();
-      _navigateByHorizontalSwipe(dx);
-      return;
-    }
-
     final isTap = absDx < 8 && absDy < 8 && elapsedMs <= 320;
     if (isTap && !startedOnAddButton) {
       _toggleUi();
@@ -330,18 +322,6 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
     if (_verticalDragOffset > 0 && mounted && !_isClosingBySwipe) {
       setState(() => _verticalDragOffset = 0);
     }
-  }
-
-  void _navigateByHorizontalSwipe(double dx) {
-    if (dx.abs() < _horizontalPageThreshold) return;
-
-    final nextIndex = dx < 0 ? _currentIndex + 1 : _currentIndex - 1;
-    if (nextIndex < 0 || nextIndex >= widget.products.length) return;
-    _pageController.animateToPage(
-      nextIndex,
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOut,
-    );
   }
 
   void _toggleUi() {
@@ -374,7 +354,6 @@ class _ProductImageViewerState extends State<_ProductImageViewer> {
     _dragStartGlobal = null;
     _dragStartEpochMs = null;
     _dragIntent = _DragIntent.undecided;
-    _startedInPageView = false;
     _startedOnAddButton = false;
     _isPointerActive = false;
   }
