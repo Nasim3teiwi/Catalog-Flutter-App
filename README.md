@@ -37,12 +37,24 @@ The page that shows completed and delivered orders for tracking and record manag
 
 ![Delivered Orders Page](https://github.com/Nasim3teiwi/Catalog-Flutter-App/blob/1ba9d1b320a6f6eec9255c43aeb390266f034859/Screenshot_2026-05-23-01-21-01-76_67a050dd25fda41ec0f5e7b0289ed873.jpg)
 
-## Edit Products Page
-The page used to edit and update products information.
+## Edit Product Page
+The page used to edit and update product information.
 
-![Edit Product Page](https://github.com/Nasim3teiwi/Catalog-Flutter-App/blob/1ba9d1b320a6f6eec9255c43aeb390266f034859/Screenshot_2026-05-23-01-22-04-21_67a050dd25fda41ec0f5e7b0289ed873.jpg)
+![Edit Product Page](https://github.com/Nasim3teiwi/Catalog-Flutter-App/blob/622886a418199d2c1aed4a982210d12559361786/Screenshot_2026-05-28-21-18-57-11_67a050dd25fda41ec0f5e7b0289ed873.jpg)
 
 ## Invoice Page
 The invoice page that displays order details, purchased items, quantities, pricing, and the final total in a clear and organized format.
 
 ![Invoice Page](https://github.com/Nasim3teiwi/Catalog-Flutter-App/blob/1ba9d1b320a6f6eec9255c43aeb390266f034859/Screenshot_2026-05-28-19-07-24-17_c37d74246d9c81aa0bb824b57eaf7062.jpg)
+
+## Product Details Page
+The page that allows users to view detailed information about a selected product, including images, description, price, and available quantity.
+
+![Product Details Page](https://github.com/Nasim3teiwi/Catalog-Flutter-App/blob/622886a418199d2c1aed4a982210d12559361786/Screenshot_2026-05-28-20-39-43-70_67a050dd25fda41ec0f5e7b0289ed873.jpg)
+
+---
+
+## Products Browsing Page
+The page designed for browsing products smoothly, allowing users to navigate between available items and explore the catalog easily.
+
+![Products Browsing Page](https://github.com/Nasim3teiwi/Catalog-Flutter-App/blob/622886a418199d2c1aed4a982210d12559361786/Screenshot_2026-05-28-20-42-57-75_67a050dd25fda41ec0f5e7b0289ed873.jpg)
